@@ -1,0 +1,49 @@
+# ── Python basics ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+bin/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg-info/
+
+# ── Poetry ──
+poetry.lock          # optional: keep it if you want deterministic CI
+.venv/
+venv/
+env/
+
+# ── IDE ──
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ── Jupyter (if you ever add notebooks) ──
+.ipynb_checkpoints/
+
+# ── Environment secrets ──
+.env
+*.env
+
+# ── Logs / runtime ──
+*.log
+*.db
+.sqlite3
+
+# ── OS cruft ──
+Thumbs.db
+desktop.ini
