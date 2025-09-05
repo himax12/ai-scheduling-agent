@@ -36,8 +36,6 @@ env/
 .ipynb_checkpoints/
 
 # ── Environment secrets ──
-.env
-*.env
 
 # ── Logs / runtime ──
 *.log
@@ -50,5 +48,4 @@ desktop.ini
 
 test_ollama,py
 admin_review_report.xlsx
-find_uris.py
 test_calandly_api.py
