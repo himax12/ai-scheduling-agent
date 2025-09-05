@@ -1,91 +1,92 @@
 # app/tools.py
 
-from langchain_core.tools import tool
-import pandas as pd
-from datetime import datetime
 import os
-
+import pandas as pd
+from datetime import datetime, timedelta
+from langchain_core.tools import tool
+from app.utils import send_confirmation_email, schedule_reminders
+import traceback
 # --- Configuration: Define file paths for data ---
 DATA_DIR = "./data"
 PATIENT_DB_PATH = os.path.join(DATA_DIR, "patients.csv")
 BOOKINGS_DB_PATH = os.path.join(DATA_DIR, "bookings.csv")
-SCHEDULE_DB_PATH = os.path.join(DATA_DIR, "doctor_schedules.xlsx")
 
-# Ensure the data directory exists
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
 @tool
 def search_patient_in_emr(full_name: str, dob: str) -> str:
-    """
-    Looks up a patient by their full name and date of birth (YYYY-MM-DD)
-    in the EMR. Returns the patient's status (new or returning) and details if found.
-    """
+    """Looks up a patient by their full name and date of birth (YYYY-MM-DD) in the EMR."""
     print(f"🛠️ Tool Called: search_patient_in_emr(full_name='{full_name}', dob='{dob}')")
     try:
-        # Load the patient database from the CSV file
         patients_df = pd.read_csv(PATIENT_DB_PATH)
-        
-        # Search for a matching patient (case-insensitive name)
-        patient = patients_df[
-            (patients_df['name'].str.lower() == full_name.lower()) & 
-            (patients_df['dob'] == dob)
-        ]
-        
+        patient = patients_df[(patients_df['name'].str.lower() == full_name.lower()) & (patients_df['dob'] == dob)]
         if not patient.empty:
-            # If we found a patient, return their details
-            patient_details = patient.to_dict('records')[0]
-            return f"SUCCESS: Found returning patient. Details: {patient_details}"
+            return f"SUCCESS: Found returning patient. Details: {patient.to_dict('records')[0]}"
         else:
-            # If no patient was found
             return "SUCCESS: This is a new patient."
-    except FileNotFoundError:
-        return "ERROR: The patient database file was not found. Please tell the user you're having technical difficulties."
     except Exception as e:
-        return f"ERROR: An unexpected error occurred while searching for the patient: {str(e)}"
+        return f"ERROR: An unexpected error occurred: {str(e)}"
 
 
 @tool
 def get_available_slots(doctor_name: str, is_new_patient: bool) -> str:
-    """
-    Gets available appointment slots for a given doctor. 
-    New patients get 60-minute slots, returning patients get 30-minute slots.
-    This is a mock function and returns a fixed list of slots for demonstration.
-    """
+    """Gets available, specific, and future weekday appointment slots for a given doctor."""
     print(f"🛠️ Tool Called: get_available_slots(doctor_name='{doctor_name}', is_new_patient={is_new_patient})")
     duration = 60 if is_new_patient else 30
-    # In a real system, you would read SCHEDULE_DB_PATH and check against BOOKINGS_DB_PATH
-    slots = [
-        f"Tomorrow at 09:00 AM ({duration} min)",
-        f"Tomorrow at 11:30 AM ({duration} min)",
-        f"Tomorrow at 02:00 PM ({duration} min)",
-        f"The day after tomorrow at 10:00 AM ({duration} min)",
-    ]
+    slots = []
+    today = datetime.now()
+    for i in range(1, 8):
+        future_date = today + timedelta(days=i)
+        if future_date.weekday() < 5: 
+            def get_day_with_suffix(d):
+                return str(d.day) + ("th" if 11 <= d.day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(d.day % 10, "th"))
+            date_str = f"{future_date.strftime('%A, %B')} {get_day_with_suffix(future_date)}, {future_date.year}"
+            slots.append(f"{date_str} at 09:00 AM ({duration} min)")
+            slots.append(f"{date_str} at 11:30 AM ({duration} min)")
+        if len(slots) >= 4:
+            break
     return f"SUCCESS: The following slots are available for Dr. {doctor_name}: {', '.join(slots)}."
 
+# --- vvv THIS FUNCTION IS NOW CORRECTED vvv ---
+# In app/tools.py
 
 @tool
-def book_appointment(patient_name: str, doctor_name: str, appointment_time: str) -> str:
+def book_appointment(patient_name: str, doctor_name: str, time: str) -> str:
     """
-    Books an appointment for a patient with a specific doctor at a given time.
-    This function appends the booking to the bookings.csv file.
+    Books an appointment, appends it to the log, and triggers notifications.
+    This version includes detailed debugging print statements.
     """
-    print(f"🛠️ Tool Called: book_appointment(patient_name='{patient_name}', doctor_name='{doctor_name}', appointment_time='{appointment_time}')")
+    print("\n---DEBUG: Inside book_appointment tool---")
+    print(f"Received Patient Name: {patient_name} (Type: {type(patient_name)})")
+    print(f"Received Doctor Name: {doctor_name} (Type: {type(doctor_name)})")
+    print(f"Received Appointment Time: {time} (Type: {type(time)})")
+
     try:
-        # Create a new DataFrame for the new booking
-        new_booking = pd.DataFrame([{
-            "patient_name": patient_name,
-            "doctor_name": doctor_name,
-            "appointment_time": appointment_time,
-            "booking_date": datetime.now().strftime("%Y-%m-%d")
-        }])
+        print("Step 1: Determining if patient is new by reading CSV...")
+        patients_df = pd.read_csv(PATIENT_DB_PATH)
+        is_new_patient = patients_df[patients_df['name'].str.lower() == patient_name.lower()].empty
+        print(f"Step 2: Patient status determined. Is New: {is_new_patient}")
+
+        print("Step 3: Creating booking DataFrame...")
+        new_booking = pd.DataFrame([{"patient_name": patient_name, "doctor_name": doctor_name, "appointment_time": time, "booking_date": datetime.now().strftime("%Y-%m-%d")}])
         
-        # Check if the bookings file exists to decide whether to write headers
+        print("Step 4: Writing to bookings.csv...")
         file_exists = os.path.exists(BOOKINGS_DB_PATH)
-        
-        # Append the new booking to our bookings log
         new_booking.to_csv(BOOKINGS_DB_PATH, mode='a', header=not file_exists, index=False)
+        print("Step 5: CSV write successful. Calling email utility...")
         
-        return f"SUCCESS: The appointment has been successfully booked for {patient_name} with Dr. {doctor_name} at {appointment_time}."
+        send_confirmation_email(patient_name, doctor_name, time, is_new_patient)
+        print("Step 6: Email utility successful. Calling reminder utility...")
+        
+        schedule_reminders(patient_name, time)
+        print("Step 7: All steps successful. Returning SUCCESS.")
+        
+        return f"SUCCESS: The appointment has been successfully booked for {patient_name} with Dr. {doctor_name} at {time}."
+    
     except Exception as e:
-        return f"ERROR: Could not book the appointment due to a system error. Reason: {str(e)}"
+        print(f"\n--- ❌ DEBUG: ERROR caught in book_appointment tool ---")
+        # This will print the full, detailed Python error to your terminal
+        traceback.print_exc()
+        print("-----------------------------------------------------\n")
+        return f"ERROR: Could not book the appointment. Reason: {str(e)}"

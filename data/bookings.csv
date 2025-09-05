@@ -1,1 +1,42 @@
-patient_name,doctor_name,appointment_time,booking_date
+patient_name,doctor_name,appointment_time,booking_dateJohn Smith,Dr. Chen,"September 6th, 2025 at 11:30 AM",2025-09-05
+john doe,Dr. Jane Smith,"Monday, September 8th, 2025 at 09:00 AM",2025-09-05
+john doe,Dr. Jane Smith,"Tuesday, September 9th, 2025 at 11:30 AM",2025-09-05
+john doe,Dr. Jane Smith,"Tuesday, September 9th, 2025 at 11:30 AM",2025-09-05
+Amanda Davis,Dr. Adams,"Monday, September 8th, 2025 at 09:00 AM",2025-09-05
+Amanda Davis,Dr. Adams,2025-09-08 09:00,2025-09-05
+Gojo Saturo,Dr. Jane,"Monday, September 8th, 2025 at 09:00 AM (60 min)",2025-09-05
+Gojo Saturo,Dr. Jane,"Tuesday, September 9th, 2025 at 11:30 AM (60 min)",2025-09-05
+Gojo Saturo,Dr. Small Dihh,"Tuesday, September 9th, 2025 at 11:30 AM (60 min)",2025-09-05
+Gojo Saturo,Dr. dihh,"Monday, September 8th, 2025 at 09:00 AM",2025-09-05
+Gojo Saturo,Dr. dihh,"Tuesday, September 9th, 2025 at 09:00 AM",2025-09-05
+Gojo Saturo,dr dihh1,"Monday, September 8 2025 at 09:00 AM",2025-09-05
+GoGo Saturo,dr dihh1,2025-09-08T09:00:00,2025-09-05
+Gojo Saturo,dr dihh1,2025-09-08 09:00,2025-09-05
+Gojo Saturo,dr dihh1,2025-09-09T11:30:00,2025-09-05
+Gojo Saturo,Dr. dihh1,2025-09-09T11:30:00,2025-09-05
+Gojo Saturo,dr dihh1,2025-09-08T11:30:00,2025-09-05
+Gojo Saturo,dr dihh1,2025-09-09T09:00:00,2025-09-05
+Gojo Saturond,Dr. chengg,"Monday, September 8 2025 at 11:30 AM",2025-09-05
+Gojo Saturond,Chengg,2025-09-08T11:30:00,2025-09-05
+Gojs Saturond,Chengg,2025-09-08 11:30,2025-09-05
+Gojo Saturond,Dr. chengg,"Monday, September 8th, 2025 at 11:30 AM",2025-09-05
+Gojo Saturond,chengg,2025-09-08T11:30:00,2025-09-05
+Gojo Saturond,Dr. Dr. chengg,2025-09-08T11:30:00,2025-09-05
+Gojo Saturond,chengg,2025-09-08T11:30:00Z,2025-09-05
+Gojo Saturond,Dr. Chengg,"Monday, September 8th, 2025 at 11:30 AM",2025-09-05
+drake,dr calmain,"Tuesday, September 9 2025 at 09:00 AM",2025-09-05
+drake,dr calmain,"Tuesday, September 9th, 2025 at 09:00 AM",2025-09-05
+drake,dr calmain,2025-09-09 09:00,2025-09-05
+drake,dr calmain,2025-09-09T09:00,2025-09-05
+dangew,dr tim,"Tuesday, September 9 2025 at 09:00 AM",2025-09-05
+dangew,dr tim,2025-09-09T09:00:00,2025-09-05
+dangew,Dr. Tim,2025-09-09T09:00:00,2025-09-05
+dangew,Tim,2025-09-09T09:00:00,2025-09-05
+Dangew,Tim,2025-09-09 09:00,2025-09-05
+Gaga Ramga,dr ruby,"Tuesday, September 9 2025 at 11:30 AM",2025-09-05
+Emily Johnson,Dr. Adams,"Monday, September 8 2025 at 09:00 AM",2025-09-05
+Bruce Wayne,Dr. Chen,"Tuesday, September 9 2025 at 11:30 AM",2025-09-05
+Kroartan Wamoesne,dr Alex,"Monday, September 8 2025 at 09:00 AM",2025-09-05
+Kok trimosein,adams,"Monday, September 8 2025 at 11:30 AM",2025-09-05
+Diana Prince,Dr. Chen,"Monday, September 8 2025 at 09:00 AM",2025-09-05
+Diego Princess,Dr. Chen,"Monday, September 8 2025 09:00 AM",2025-09-05

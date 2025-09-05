@@ -1,109 +1,123 @@
-import os
-from typing import TypedDict, Annotated
+# app/agent.py
+
 import operator
-from dotenv import load_dotenv
-from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, ToolMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.graph import StateGraph, END
+import re
+from typing import Annotated, Optional, TypedDict
+
+# Imports have been cleaned up
+from langchain_core.messages import AnyMessage, SystemMessage, ToolMessage, AIMessage
+from langchain_groq import ChatGroq
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, StateGraph
 
-from app.tools import search_patient_in_emr, get_available_slots, book_appointment
+# Import the tools we created
+from app.tools import book_appointment, get_available_slots, search_patient_in_emr
 
-# Load environment variables from .env file
-load_dotenv()
-if os.getenv("GOOGLE_API_KEY") is None:
-    raise ValueError("GOOGLE_API_KEY not found in .env file")
-
-# 1. Define the State: The agent's memory
+# --- 1. Define the Agent's State (The Agent's Memory) ---
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], operator.add]
+    patient_status: Optional[str]
+    doctor_name: Optional[str]
+    available_slots: Optional[list[str]]
 
-# 2. Define the Tools: Gather all our functions into a list
+# --- 2. Setup Tools and LLM ---
 tools = [search_patient_in_emr, get_available_slots, book_appointment]
+tool_map = {t.name: t for t in tools}
 
-# 3. Define the LLM and bind the tools to it
-# This tells the LLM what functions it's allowed to call.
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-latest", temperature=0, convert_system_message_to_human=True)
+# We use a current, powerful, and supported model from the Groq API
+llm = ChatGroq(model_name="openai/gpt-oss-120b", temperature=0)
+
+# --- This is the corrected setup ---
+# This crucial line binds the tools to the LLM, creating the runnable agent
 llm_with_tools = llm.bind_tools(tools)
 
-# 4. Define the Nodes for our graph
 
-# This node calls the AI model
-def call_model(state: AgentState):
-    """The primary node for the agent. Calls the LLM with the current state."""
-    print("🧠 Node: Calling Model")
-    # The first message is always the system prompt
-    system_prompt = SystemMessage(
-        content="""
-        You are a helpful and friendly medical appointment scheduling assistant.
-        Your tasks are:
-        1.  Greet the user and ask for their full name and date of birth to begin.
-        2.  Use the `search_patient_in_emr` tool to check if they are a new or returning patient.
-        3.  Based on their status, use the `get_available_slots` tool to find appointments. Clearly state the appointment duration (60 mins for new, 30 for returning).
-        4.  Ask the user to confirm their desired slot.
-        5.  Once confirmed, use the `book_appointment` tool to finalize the booking.
-        6.  After booking, confirm everything with the user and end the conversation.
+# --- 3. Define the Agent's Nodes ---
 
-        Be polite and clear in all your communications. Do not ask for insurance information.
-        """
-    )
-    messages_with_prompt = [system_prompt] + state['messages']
-    response = llm_with_tools.invoke(messages_with_prompt)
+def call_llm(state: AgentState):
+    """The 'brain' of the agent. It decides the next action based on the current state."""
+    print("---NODE: AGENT BRAIN---")
+    
+# In agent.py -> call_llm()
+
+    system_prompt_content = f"""You are an autonomous and efficient medical scheduling assistant. Your goal is to book an appointment by following a strict, unchangeable sequence of tasks.
+
+    **Your Current Task Status (Your Memory):**
+    - Patient Status: {state.get("patient_status", "Unknown")}
+    - Insurance Collected: {"Yes" if state.get("insurance_info") else "No"}
+    - Doctor Chosen: {state.get("doctor_name", "Unknown")}
+    - Slots Found: {"Yes" if state.get("available_slots") else "No"}
+
+    **Instructions (You MUST follow this order):**
+    1.  **Task 1: Identify Patient.** If Patient Status is 'Unknown', your only goal is to call the `search_patient_in_emr` tool. Do not proceed until this is done.
+    2.  **Task 2: Collect Insurance.** If Patient Status is known BUT Insurance is 'No', your only goal is to call the `collect_insurance_details` tool. Do not proceed until this is done.
+    3.  **Task 3: Determine Doctor.** If Patient is 'NEW', Doctor is 'Unknown', AND Insurance is 'Yes', your only goal is to ask the user for their doctor choice.
+    4.  **Task 4: Find Slots.** If a Doctor is chosen AND Slots are 'No', your only goal is to call `get_available_slots`.
+    5.  **Task 5: Get Confirmation.** If Slots are 'Yes', your only goal is to present a summary and ask for final confirmation (e.g., "Does this look correct?").
+    6.  **Task 6: Book Appointment.** If the user has confirmed the summary, your only goal is to call the `book_appointment` tool.
+    7.  **Task 7: Final Response.** If the appointment is booked, your ONLY job is to provide a single, clean confirmation message and nothing else.
+    """.format(
+        patient_status=state.get("patient_status", "Unknown"),
+        doctor_name=state.get("doctor_name", "Unknown"),
+        slots_found="Yes" if state.get("available_slots") else "No",
+        insurance_info=state.get("insurance_info", "No")
+    )    
+    messages = [SystemMessage(content=system_prompt_content)] + state['messages']
+    # This line now works correctly because llm_with_tools is defined
+    response = llm_with_tools.invoke(messages)
     return {"messages": [response]}
 
-# This node executes the tools
-def call_tool(state: AgentState):
-    """This node executes the tools called by the LLM."""
-    print("🛠️ Node: Calling Tool")
-    # The last message from the model will be a tool call
+def call_tool_and_update_state(state: AgentState):
+    """The 'hands' of the agent. It executes tools and updates the agent's memory."""
+    print("---NODE: CALLING TOOL & UPDATING STATE---")
     last_message = state['messages'][-1]
+    action = last_message.tool_calls[0]
+    tool_to_call = tool_map[action['name']]
+    tool_output = tool_to_call.invoke(action['args'])
 
-    # We find the tool to call and its arguments
-    tool_name = last_message.tool_calls[0]['name']
-    args = last_message.tool_calls[0]['args']
+    updates = {}
+    if action['name'] == 'search_patient_in_emr':
+        if "new patient" in tool_output.lower():
+            updates["patient_status"] = "NEW"
+        elif "returning patient" in tool_output.lower():
+            updates["patient_status"] = "RETURNING"
+            match = re.search(r"last_visit_doctor': '(Dr\. \w+)'", tool_output)
+            if match:
+                updates["doctor_name"] = match.group(1)
 
-    # Look for the actual function in our tools list
-    action = None
-    for tool in tools:
-        if tool.name == tool_name:
-            action = tool
-            break
+    if action['name'] == 'get_available_slots':
+        slots_text = tool_output.split("SUCCESS: The following slots are available")[1]
+        slots = [s.strip() for s in slots_text.split(":")[-1].split(",")]
+        updates["available_slots"] = slots
+    
+    return {"messages": [ToolMessage(content=str(tool_output), tool_call_id=action['id'])], **updates}
 
-    if action is None:
-        raise ValueError(f"Tool {tool_name} not found.")
-
-    # Execute the tool and get the result
-    result = action.invoke(args)
-
-    # Return the result as a ToolMessage
-    tool_message = ToolMessage(content=str(result), tool_call_id=last_message.tool_calls[0]['id'])
-    return {"messages": [tool_message]}
-
-# 5. Define the Edges: The conditional logic
+# --- 4. Define Graph Logic ---
 def should_continue(state: AgentState):
-    """Determines the next step: call a tool or end the conversation."""
+    """The 'manager' that decides whether to call a tool or end the conversation."""
     last_message = state['messages'][-1]
-    if last_message.tool_calls:
-        # If the model made a tool call, we should execute it
+    if isinstance(last_message, AIMessage) and hasattr(last_message, 'tool_calls') and last_message.tool_calls:
         return "call_tool"
     else:
-        # Otherwise, the conversation is finished
         return END
 
-# 6. Build and Compile the Graph
+# --- 5. Build the Final Graph ---
 workflow = StateGraph(AgentState)
-workflow.add_node("agent", call_model)
-workflow.add_node("call_tool", call_tool)
+
+workflow.add_node("agent", call_llm)
+workflow.add_node("call_tool", call_tool_and_update_state)
+
 workflow.set_entry_point("agent")
+
 workflow.add_conditional_edges(
     "agent",
     should_continue,
     {
         "call_tool": "call_tool",
-        END: END
-    }
+        END: END,
+    },
 )
+
 workflow.add_edge("call_tool", "agent")
 
-# This creates the final, runnable agent
 app_graph = workflow.compile(checkpointer=MemorySaver())

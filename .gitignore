@@ -47,3 +47,5 @@ env/
 # ── OS cruft ──
 Thumbs.db
 desktop.ini
+
+test_ollama,py
