@@ -3,16 +3,23 @@
 import os
 import pandas as pd
 from datetime import datetime, timedelta
+import requests
 from langchain_core.tools import tool
 from app.utils import send_confirmation_email, schedule_reminders
-import traceback
-# --- Configuration: Define file paths for data ---
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# --- Configuration ---
 DATA_DIR = "./data"
 PATIENT_DB_PATH = os.path.join(DATA_DIR, "patients.csv")
 BOOKINGS_DB_PATH = os.path.join(DATA_DIR, "bookings.csv")
-
 os.makedirs(DATA_DIR, exist_ok=True)
-
+CALENDLY_API_KEY = os.getenv("CALENDLY_API_KEY")
+HEADERS = {
+    "Authorization": f"Bearer {CALENDLY_API_KEY}",
+    "Content-Type": "application/json"
+}
 
 @tool
 def search_patient_in_emr(full_name: str, dob: str) -> str:
@@ -28,65 +35,83 @@ def search_patient_in_emr(full_name: str, dob: str) -> str:
     except Exception as e:
         return f"ERROR: An unexpected error occurred: {str(e)}"
 
+# In app/tools.py
 
-@tool
-def get_available_slots(doctor_name: str, is_new_patient: bool) -> str:
-    """Gets available, specific, and future weekday appointment slots for a given doctor."""
-    print(f"🛠️ Tool Called: get_available_slots(doctor_name='{doctor_name}', is_new_patient={is_new_patient})")
-    duration = 60 if is_new_patient else 30
-    slots = []
-    today = datetime.now()
-    for i in range(1, 8):
-        future_date = today + timedelta(days=i)
-        if future_date.weekday() < 5: 
-            def get_day_with_suffix(d):
-                return str(d.day) + ("th" if 11 <= d.day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(d.day % 10, "th"))
-            date_str = f"{future_date.strftime('%A, %B')} {get_day_with_suffix(future_date)}, {future_date.year}"
-            slots.append(f"{date_str} at 09:00 AM ({duration} min)")
-            slots.append(f"{date_str} at 11:30 AM ({duration} min)")
-        if len(slots) >= 4:
-            break
-    return f"SUCCESS: The following slots are available for Dr. {doctor_name}: {', '.join(slots)}."
-
-# --- vvv THIS FUNCTION IS NOW CORRECTED vvv ---
 # In app/tools.py
 
 @tool
-def book_appointment(patient_name: str, doctor_name: str, time: str) -> str:
-    """
-    Books an appointment, appends it to the log, and triggers notifications.
-    This version includes detailed debugging print statements.
-    """
-    print("\n---DEBUG: Inside book_appointment tool---")
-    print(f"Received Patient Name: {patient_name} (Type: {type(patient_name)})")
-    print(f"Received Doctor Name: {doctor_name} (Type: {type(doctor_name)})")
-    print(f"Received Appointment Time: {time} (Type: {type(time)})")
-
+def get_available_slots(is_new_patient: bool) -> str:
+    """Gets real-time available appointment slots from the Calendly API."""
+    print(f"🛠️ Tool Called: get_available_slots(is_new_patient={is_new_patient})")
+    if not CALENDLY_API_KEY:
+        return "ERROR: Calendly API key is not configured."
+        
     try:
-        print("Step 1: Determining if patient is new by reading CSV...")
+        event_type_uri = os.getenv("CALENDLY_EVENT_TYPE_60_MIN_URI") if is_new_patient else os.getenv("CALENDLY_EVENT_TYPE_30_MIN_URI")
+        user_uri = os.getenv("CALENDLY_USER_URI")
+        
+        if not user_uri or not event_type_uri:
+            return "ERROR: Calendly User or Event URI is not configured in .env file."
+
+        url = "https://api.calendly.com/event_type_available_times"
+        
+        # --- vvv THIS IS THE FIX vvv ---
+        start_time = datetime.utcnow()
+        end_time = start_time + timedelta(days=7)
+        
+        params = {
+            "user": user_uri,
+            "event_type": event_type_uri,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat()
+        }
+        # --- ^^^ THIS IS THE FIX ^^^ ---
+        
+        response = requests.get(url, headers=HEADERS, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        slots = [datetime.fromisoformat(slot['start_time'].replace("Z", "+00:00")).strftime('%A, %B %d, %Y at %I:%M %p') for slot in data.get('collection', [])]
+        
+        if not slots:
+            return "SUCCESS: No available slots found in the next 7 days."
+            
+        return f"SUCCESS: The following slots are available: {', '.join(slots[:5])}."
+    except requests.exceptions.HTTPError as e:
+        return f"ERROR: Could not retrieve slots from Calendly. API Error: {e.response.text}"
+    except Exception as e:
+        return f"ERROR: Could not retrieve slots from Calendly. Reason: {str(e)}"
+    
+@tool
+def book_appointment(patient_name: str, doctor_name: str, appointment_time: str) -> str:
+    """Logs the confirmed appointment and triggers notifications."""
+    print(f"🛠️ Tool Called: book_appointment(patient_name='{patient_name}', appointment_time='{appointment_time}')")
+    try:
         patients_df = pd.read_csv(PATIENT_DB_PATH)
         is_new_patient = patients_df[patients_df['name'].str.lower() == patient_name.lower()].empty
-        print(f"Step 2: Patient status determined. Is New: {is_new_patient}")
-
-        print("Step 3: Creating booking DataFrame...")
-        new_booking = pd.DataFrame([{"patient_name": patient_name, "doctor_name": doctor_name, "appointment_time": time, "booking_date": datetime.now().strftime("%Y-%m-%d")}])
         
-        print("Step 4: Writing to bookings.csv...")
-        file_exists = os.path.exists(BOOKINGS_DB_PATH)
-        new_booking.to_csv(BOOKINGS_DB_PATH, mode='a', header=not file_exists, index=False)
-        print("Step 5: CSV write successful. Calling email utility...")
+        new_booking = pd.DataFrame([{"patient_name": patient_name, "doctor_name": doctor_name, "appointment_time": appointment_time, "booking_date": datetime.now().strftime("%Y-%m-%d")}])
+        new_booking.to_csv(BOOKINGS_DB_PATH, mode='a', header=not os.path.exists(BOOKINGS_DB_PATH), index=False)
         
-        send_confirmation_email(patient_name, doctor_name, time, is_new_patient)
-        print("Step 6: Email utility successful. Calling reminder utility...")
+        send_confirmation_email(patient_name, doctor_name, appointment_time, is_new_patient)
+        schedule_reminders(patient_name, appointment_time)
         
-        schedule_reminders(patient_name, time)
-        print("Step 7: All steps successful. Returning SUCCESS.")
-        
-        return f"SUCCESS: The appointment has been successfully booked for {patient_name} with Dr. {doctor_name} at {time}."
-    
+        return f"SUCCESS: The appointment has been successfully booked for {patient_name} with {doctor_name} at {appointment_time}. The user has been notified."
     except Exception as e:
-        print(f"\n--- ❌ DEBUG: ERROR caught in book_appointment tool ---")
-        # This will print the full, detailed Python error to your terminal
-        traceback.print_exc()
-        print("-----------------------------------------------------\n")
-        return f"ERROR: Could not book the appointment. Reason: {str(e)}"
+        return f"ERROR: Could not log the appointment booking. Reason: {str(e)}"
+    
+@tool
+def collect_insurance_details(carrier: str, member_id: str, group_number: str) -> str:
+    """Collects the patient's insurance information."""
+    print(f"🛠️ Tool Called: collect_insurance_details(carrier='{carrier}', member_id='{member_id}')")
+    # In a real application, this would be saved to a database.
+    # For this case study, we just confirm it was collected.
+    return f"SUCCESS: Insurance details for {carrier} have been collected and stored."
+
+# In app/tools.py
+
+@tool
+def skip_insurance() -> str:
+    """Call this tool when the user indicates they do not have or do not want to provide insurance information."""
+    print(f"🛠️ Tool Called: skip_insurance()")
+    return "SUCCESS: Insurance step has been skipped."

@@ -1,6 +1,8 @@
 # app/utils.py
 
-# app/utils.py
+import pandas as pd
+import os
+from datetime import datetime
 
 def send_confirmation_email(patient_name: str, doctor_name: str, appointment_time: str, is_new_patient: bool):
     """
@@ -34,13 +36,34 @@ def schedule_reminders(patient_name: str, appointment_time: str):
     print(f"1. [Action Registered] Send reminder to {patient_name} 24 hours before {appointment_time}.")
     print(f"2. [Action Registered] Send reminder to {patient_name} 3 hours before {appointment_time} (with form completion check).")
     print("--- ✅ REMINDERS SCHEDULED ---\n")
-    
-def schedule_reminders(patient_name: str, time: str):
+
+# In app/utils.py
+
+def export_to_excel():
     """
-    A mock function to simulate scheduling SMS & email reminders.
-    In a real application, this would add jobs to a task queue like Celery or RQ.
+    Reads the bookings.csv file and exports its content to an Excel file
+    for administrative review. This version is robust to missing columns.
     """
-    print("\n--- ⏰ SIMULATING SCHEDULING REMINDERS ---")
-    print(f"1. [Action Registered] Send reminder to {patient_name} 24 hours before {time}.")
-    print(f"2. [Action Registered] Send reminder to {patient_name} 3 hours before {time} (with form completion check).")
-    print("--- ✅ REMINDERS SCHEDULED ---\n")
+    bookings_csv_path = os.path.join("data", "bookings.csv")
+    report_excel_path = "admin_review_report.xlsx"
+
+    if not os.path.exists(bookings_csv_path):
+        return "No bookings found to export."
+
+    try:
+        df = pd.read_csv(bookings_csv_path)
+        
+        # Define the ideal column order for the report
+        desired_columns = ['booking_date', 'patient_name', 'doctor_name', 'appointment_time']
+        
+        # Find which of our ideal columns actually exist in the CSV file
+        existing_columns = [col for col in desired_columns if col in df.columns]
+        
+        # Create the report using only the columns that exist
+        df_report = df[existing_columns]
+        
+        df_report.to_excel(report_excel_path, index=False, sheet_name="Bookings")
+        
+        return f"✅ Report successfully generated: {report_excel_path}"
+    except Exception as e:
+        return f"❌ Failed to generate report. Error: {str(e)}"
