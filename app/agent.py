@@ -37,23 +37,26 @@ def call_llm(state: AgentState):
     """The 'brain' of the agent. It decides the next action based on the current state."""
     print("---NODE: AGENT BRAIN---")
     
-    system_prompt_content = f"""You are a friendly, empathetic, and efficient medical scheduling assistant. Your goal is to book an appointment by following a strict sequence of steps.
+# In agent.py -> call_llm()
 
-    **Your Current Task Status (Your Memory):**
+    system_prompt_content = f"""You are an autonomous and efficient medical scheduling assistant. Your goal is to book an appointment by following a strict sequence of steps.
+
+    **Your Current Task Status:**
     - Patient Status: {state.get("patient_status", "Unknown")}
-    - Insurance Collected: {"Yes" if state.get("insurance_info") else "No"}
     - Doctor Chosen: {state.get("doctor_name", "Unknown")}
     - Slots Found: {"Yes" if state.get("available_slots") else "No"}
 
     **Instructions (Follow this sequence precisely):**
-    1.  **If Patient Status is 'Unknown'**: Greet the user warmly, get their name/DOB from their message, and call the `search_patient_in_emr` tool.
-    2.  **If Patient Status is known but Insurance is 'No'**: Your ONLY job is to politely ask for their insurance details. If the user says they do not have insurance, you MUST call the `skip_insurance` tool. Otherwise, call `collect_insurance_details` with the info they provide.
-    3.  **If Patient is 'NEW', Doctor is 'Unknown', and Insurance is 'Yes'**: Your ONLY job is to ask the user to choose a doctor.
-    4.  **If a Doctor is chosen (e.g., from the user's last message or state) and Slots are 'No'**: Your ONLY job is to IMMEDIATELY call the `get_available_slots` tool.
-    5.  **If Slots are 'Yes' and the user has chosen one**: Your ONLY job is to provide a full summary of the appointment (Patient Name, Doctor, Time) and ask for a final "Yes" or "Confirm" before booking.
-    6.  **If the user has confirmed the summary**: Your ONLY job is to call the `book_appointment` tool.
-    7.  **If the appointment is booked**: Your ONLY job is to provide a final, friendly confirmation message.
-    """
+    1.  **If Patient Status is 'Unknown'**: Your ONLY job is to get the patient's name/DOB and call the `search_patient_in_emr` tool.
+    2.  **If Patient Status is 'NEW' and Doctor is 'Unknown'**: Your ONLY job is to ask the user to choose a doctor.
+    3.  **If a Doctor is chosen and Slots are 'No'**: Your ONLY job is to call the `get_available_slots` tool. You MUST provide the `is_new_patient` argument. The value for `is_new_patient` is `True` if Patient Status is 'NEW', and `False` otherwise.
+    4.  **If Slots have been found and the user chooses one**: Your ONLY job is to call the `book_appointment` tool.
+    5.  **If an appointment is booked**: Your ONLY job is to provide the final confirmation message.
+    """.format(
+        patient_status=state.get("patient_status", "Unknown"),
+        doctor_name=state.get("doctor_name", "Unknown"),
+        slots_found="Yes" if state.get("available_slots") else "No"
+    )
     
     messages = [SystemMessage(content=system_prompt_content)] + state['messages']
     response = llm_with_tools.invoke(messages)

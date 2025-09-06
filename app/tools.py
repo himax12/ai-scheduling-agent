@@ -1,5 +1,5 @@
 # app/tools.py
-
+from datetime import datetime, timedelta, timezone
 import os
 import pandas as pd
 from datetime import datetime, timedelta
@@ -56,14 +56,14 @@ def get_available_slots(is_new_patient: bool) -> str:
         url = "https://api.calendly.com/event_type_available_times"
         
         # --- vvv THIS IS THE FIX vvv ---
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         end_time = start_time + timedelta(days=7)
         
         params = {
             "user": user_uri,
             "event_type": event_type_uri,
-            "start_time": start_time.isoformat(),
-            "end_time": end_time.isoformat()
+            "start_time": start_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+            "end_time": end_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         }
         # --- ^^^ THIS IS THE FIX ^^^ ---
         
@@ -81,7 +81,6 @@ def get_available_slots(is_new_patient: bool) -> str:
         return f"ERROR: Could not retrieve slots from Calendly. API Error: {e.response.text}"
     except Exception as e:
         return f"ERROR: Could not retrieve slots from Calendly. Reason: {str(e)}"
-    
 @tool
 def book_appointment(patient_name: str, doctor_name: str, appointment_time: str) -> str:
     """Logs the confirmed appointment and triggers notifications."""

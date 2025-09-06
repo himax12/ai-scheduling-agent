@@ -1,8 +1,8 @@
-# test_calendly_api.py (Corrected with time range)
+# test_calendly_api.py (Corrected with Timezone-Aware Timestamps)
 import os
 import requests
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone # <-- Import timezone
 
 print("--- Starting Calendly API Direct Test ---")
 load_dotenv()
@@ -20,15 +20,16 @@ else:
     url = "https://api.calendly.com/event_type_available_times"
 
     # --- vvv THIS IS THE FIX vvv ---
-    # Define the start and end time for the search (e.g., the next 7 days)
-    start_time = datetime.utcnow()
+    # Create a timezone-aware timestamp for the current time in UTC
+    start_time = datetime.now(timezone.utc)
     end_time = start_time + timedelta(days=7)
     
     params = {
         "user": USER_URI,
         "event_type": EVENT_URI,
-        "start_time": start_time.isoformat(),
-        "end_time": end_time.isoformat()
+        # Format to the ISO 8601 standard with a 'Z' for UTC
+        "start_time": start_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+        "end_time": end_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
     }
     # --- ^^^ THIS IS THE FIX ^^^ ---
 
