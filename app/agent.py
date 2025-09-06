@@ -25,7 +25,7 @@ tools = [search_patient_in_emr, get_available_slots, book_appointment, collect_i
 tool_map = {t.name: t for t in tools}
 
 # Using a current, powerful, and supported model from the Groq API
-llm = ChatGroq(model_name="openai/gpt-oss-120b", temperature=0)
+llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0)
 
 # --- This crucial line was missing/incorrectly placed in some versions ---
 llm_with_tools = llm.bind_tools(tools)
@@ -101,9 +101,15 @@ def should_continue(state: AgentState):
         return "call_tool"
     else:
         return END
+def ask_for_doctor(state: AgentState):
+    """A simple node that asks a new patient to choose a doctor."""
+    print("---NODE: ASK FOR DOCTOR---")
+    message = AIMessage(content="I see you're a new patient. Welcome! Which doctor would you like to see? We have Dr. Adams (General Health) and Dr. Chen (Cardiology).")
+    return {"messages": [message]}
 
 # --- 5. Build the Final Graph ---
 workflow = StateGraph(AgentState)
+workflow.add_node("ask_for_doctor", ask_for_doctor)
 
 workflow.add_node("agent", call_llm)
 workflow.add_node("call_tool", call_tool_and_update_state)

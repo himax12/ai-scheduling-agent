@@ -1,6 +1,8 @@
 [project]
 name = "ai-scheduling-agent"
 version = "0.1.0"
+package-mode = false
+
 description = "An AI agent for scheduling medical appointments."
 authors = [
     {name = "Himanshu Gupta",email = "ghimax23@gmail.com"}

@@ -1,2 +1,4 @@
-patient_name,doctor_name,appointment_time,booking_date
-Varus Gogon,Dr. Emily Carter,2025-09-08T03:30:00,2025-09-05
+patient_name,doctor_name,appointment_time,booking_date,form_status,visit_status,cancellation_reason
+Emily Johnson,Dr. Adams,"Monday, September 08, 2025 at 03:30 AM",2025-09-06
+Emily Johnson,Dr. Adams,"Monday, September 08, 2025 at 03:30 AM",2025-09-06
+Bruce Wayne,any available dentist,"Monday, September 08, 2025 at 03:30 AM",2025-09-06

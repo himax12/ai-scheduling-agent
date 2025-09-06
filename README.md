@@ -69,6 +69,7 @@ The final `.env` file resembles this:
 ```
 GROQ_API_KEY="gsk_..."
 CALENDLY_API_KEY="ey..."
+get CALENDLY_USER_URI, CALENDLY_EVENT_TYPE_30_MIN_URI,CALENDLY_EVENT_TYPE_60_MIN_URI by running script test_calendly 
 CALENDLY_USER_URI="https://api.calendly.com/users/..."
 CALENDLY_EVENT_TYPE_30_MIN_URI="https://api.calendly.com/event_types/..."
 CALENDLY_EVENT_TYPE_60_MIN_URI="https://api.calendly.com/event_types/..."
