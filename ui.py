@@ -3,73 +3,57 @@
 import streamlit as st
 import requests
 import uuid
-from app.utils import export_to_excel
+import os
+from app.utils import generate_admin_report # Import the utility function
 
-# --- Configuration ---
-BACKEND_URL = "http://127.0.0.1:8000/chat"
+# --- Page Configuration ---
+st.set_page_config(page_title="AI Medical Scheduler", layout="centered")
+st.title("👩‍⚕️ AI Medical Scheduling Agent")
 
-# --- Page Setup ---
-st.set_page_config(page_title="AI Medical Scheduler", page_icon="🩺")
-st.title("AI Medical Scheduling Agent 🩺")
-
-# --- Session State Initialization ---
-# This ensures that the session ID and message history are preserved across reruns.
+# --- State Management ---
+# Initialize session_id and messages if they don't exist
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
-    
-if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": "Hello! How can I help you book an appointment today?"}]
 
-# --- Admin Panel Sidebar ---
-st.sidebar.title("Admin Panel")
-if st.sidebar.button("Generate Admin Report (Excel)"):
-    with st.sidebar:
-        with st.spinner("Generating report..."):
-            result = export_to_excel()
-            if "✅" in result:
-                st.success(result)
-            else:
-                st.warning(result)
-
-# --- Chat History Display ---
-# Display all the messages stored in the session state.
+# --- UI Rendering ---
+# Display chat messages from history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# --- User Input and API Call ---
-# This block runs when the user types a message and hits Enter.
-if prompt := st.chat_input("What would you like to do?"):
-    # 1. Add user's message to the session state and display it.
+# --- User Input and Backend Interaction ---
+if prompt := st.chat_input("How can I help you?"):
+    # Add user message to state and display it
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # 2. Prepare the data to send to the backend API.
-    request_data = {
-        "message": prompt,
-        "session_id": st.session_state.session_id
-    }
-    
-    # 3. Call the backend and handle the response.
-    try:
-        with st.spinner("Assistant is thinking... (This may take a moment)"):
-            # We add a long timeout to patiently wait for the API response.
-            response = requests.post(BACKEND_URL, json=request_data, timeout=120)
+    # Get assistant response
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        
+        try:
+            # Call the FastAPI backend
+            api_url = "http://127.0.0.1:8000/chat"
+            response = requests.post(api_url, json={"message": prompt, "session_id": st.session_state.session_id})
+            response.raise_for_status() # Raise an exception for bad status codes
             
-            # This line will raise an error if the API returns a non-200 status code.
-            response.raise_for_status() 
+            full_response = response.json().get("response", "Sorry, I encountered an error.")
+            message_placeholder.markdown(full_response)
             
-            response_data = response.json()
-            assistant_response = response_data["response"]
+        except requests.exceptions.RequestException as e:
+            full_response = f"Error: Could not connect to the backend. Please ensure it's running. Details: {e}"
+            message_placeholder.markdown(full_response)
 
-        # 4. Display the assistant's response and add it to the session state.
-        with st.chat_message("assistant"):
-            st.markdown(assistant_response)
-        
-        st.session_state.messages.append({"role": "assistant", "content": assistant_response})
-        
-    except requests.exceptions.Timeout:
-        st.error("The request timed out. The API might be taking too long to respond.")
-    except requests.exceptions.RequestException as e:
-        st.error(f"Failed to get response from backend. Error: {e}")
+    # Add assistant response to state
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+# --- Admin Panel ---
+st.sidebar.title("Admin Panel")
+st.sidebar.write("Manage system reports and data.")
+
+if st.sidebar.button("Generate Admin Report"):
+    with st.spinner("Generating report..."):
+        report_status = generate_admin_report()
+        st.sidebar.success(report_status)

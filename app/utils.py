@@ -4,12 +4,39 @@ import pandas as pd
 import os
 from datetime import datetime
 
+def generate_admin_report(): # <-- Corrected function name
+    """
+    Reads the bookings.csv file and exports its content to an Excel file
+    for administrative review, as required by the case study.
+    """
+    bookings_csv_path = os.path.join("data", "bookings.csv")
+    # Save the report to the data directory for organization
+    report_excel_path = os.path.join("data", "admin_review_report.xlsx")
+
+    if not os.path.exists(bookings_csv_path):
+        return "No bookings.csv file found to export."
+
+    try:
+        df = pd.read_csv(bookings_csv_path, encoding='utf-8')
+        
+        desired_columns = ['booking_date', 'patient_name', 'doctor_name', 'appointment_time']
+        existing_columns = [col for col in desired_columns if col in df.columns]
+        df_report = df[existing_columns]
+        
+        df_report.to_excel(report_excel_path, index=False, sheet_name="Bookings")
+        
+        return f"✅ Report successfully generated: {report_excel_path}"
+    except Exception as e:
+        return f"❌ Failed to generate report. Error: {str(e)}"
+
+# The following functions are placeholders and are not called directly by the UI.
+# They are here to represent the full logic of the application.
+
 def send_confirmation_email(patient_name: str, doctor_name: str, appointment_time: str, is_new_patient: bool):
     """
     A mock function to simulate sending a confirmation email.
-    It now correctly accepts the 'is_new_patient' flag to customize the message.
     """
-    form_message = "\nAs a next step, please complete the attached patient intake forms before your visit." if is_new_patient else ""
+    form_message = "\nAs a next step, please complete the patient intake forms sent to your email." if is_new_patient else ""
 
     email_body = f"""
     Subject: Your Appointment Confirmation
@@ -35,35 +62,5 @@ def schedule_reminders(patient_name: str, appointment_time: str):
     print("\n--- ⏰ SIMULATING SCHEDULING REMINDERS ---")
     print(f"1. [Action Registered] Send reminder to {patient_name} 24 hours before {appointment_time}.")
     print(f"2. [Action Registered] Send reminder to {patient_name} 3 hours before {appointment_time} (with form completion check).")
+    print(f"3. [Action Registered] Send final reminder to {patient_name} 1 hour before {appointment_time}.")
     print("--- ✅ REMINDERS SCHEDULED ---\n")
-
-# In app/utils.py
-
-def export_to_excel():
-    """
-    Reads the bookings.csv file and exports its content to an Excel file
-    for administrative review. This version is robust to missing columns.
-    """
-    bookings_csv_path = os.path.join("data", "bookings.csv")
-    report_excel_path = "admin_review_report.xlsx"
-
-    if not os.path.exists(bookings_csv_path):
-        return "No bookings found to export."
-
-    try:
-        df = pd.read_csv(bookings_csv_path)
-        
-        # Define the ideal column order for the report
-        desired_columns = ['booking_date', 'patient_name', 'doctor_name', 'appointment_time']
-        
-        # Find which of our ideal columns actually exist in the CSV file
-        existing_columns = [col for col in desired_columns if col in df.columns]
-        
-        # Create the report using only the columns that exist
-        df_report = df[existing_columns]
-        
-        df_report.to_excel(report_excel_path, index=False, sheet_name="Bookings")
-        
-        return f"✅ Report successfully generated: {report_excel_path}"
-    except Exception as e:
-        return f"❌ Failed to generate report. Error: {str(e)}"

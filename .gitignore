@@ -36,8 +36,6 @@ env/
 .ipynb_checkpoints/
 
 # ── Environment secrets ──
-.env
-*.env
 
 # ── Logs / runtime ──
 *.log
